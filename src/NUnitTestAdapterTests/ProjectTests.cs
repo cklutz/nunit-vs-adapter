@@ -36,7 +36,7 @@ namespace NUnit.VisualStudio.TestAdapter.Tests
             var assembly = Assembly.LoadFrom(dir + "/NUnit.VisualStudio.TestAdapter.dll");
             var refNames = assembly.GetReferencedAssemblies().Where(ass=>ass.Name=="Microsoft.VisualStudio.TestPlatform.ObjectModel").ToList();
             Assert.IsTrue(refNames != null && refNames.Count() == 1, "No reference to Microsoft.VisualStudio.TestPlatform.ObjectModel found");
-            Assert.IsTrue(refNames[0].Version.Major > 11, "Microsoft.VisualStudio.TestPlatform.ObjectModel must point to the 2012 version (11)");
+            Assert.IsTrue(refNames[0].Version.Major >= 11, "Microsoft.VisualStudio.TestPlatform.ObjectModel must point to the 2012 version (11)");
 
         }
 
