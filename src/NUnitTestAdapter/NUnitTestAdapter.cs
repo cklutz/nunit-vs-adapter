@@ -53,26 +53,26 @@ namespace NUnit.VisualStudio.TestAdapter
 
         protected NUnitTestAdapterSettings GetSettings(IDiscoveryContext discoveryContext)
         {
-            try
-            {
-                Info("Trying to get settings");
-                var provider = discoveryContext.RunSettings.GetSettings(AdapterConstants.SettingsName) as NUnitTestAdapterSettingsProvider;
-                var settings = provider != null ? provider.Settings : new NUnitTestAdapterSettings();
-                return settings;
-            }
-            catch (Exception ex)
-            {
-                Error("Error getting settings", ex);
-                throw;
-            }
+            if (discoveryContext == null || discoveryContext.RunSettings == null)
+                return new NUnitTestAdapterSettings();
+
+            return GetSettings(discoveryContext.RunSettings);
         }
 
         protected NUnitTestAdapterSettings GetSettings(IRunContext runContext)
         {
+            if (runContext == null || runContext.RunSettings == null)
+                return new NUnitTestAdapterSettings();
+
+            return GetSettings(runContext.RunSettings);
+        }
+
+        protected NUnitTestAdapterSettings GetSettings(IRunSettings runSettings)
+        {
             try
             {
                 Info("Trying to get settings");
-                var provider = runContext.RunSettings.GetSettings(AdapterConstants.SettingsName) as NUnitTestAdapterSettingsProvider;
+                var provider = runSettings.GetSettings(AdapterConstants.SettingsName) as NUnitTestAdapterSettingsProvider;
                 var settings = provider != null ? provider.Settings : new NUnitTestAdapterSettings();
                 return settings;
             }

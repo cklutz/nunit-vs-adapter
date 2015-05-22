@@ -13,12 +13,12 @@ namespace NUnit.VisualStudio.TestAdapter.Tests
     public class ProjectTests
     {
         [Test]
-        public void ThatTheTestAdapterUsesFrameWork35()
+        public void ThatTheTestAdapterUsesFrameWork40()
         {
             var dir = Directory.GetCurrentDirectory();
             var assembly = Assembly.LoadFrom(dir+"/NUnit.VisualStudio.TestAdapter.dll");
             var version = assembly.ImageRuntimeVersion;
-            Assert.That(version,Is.EqualTo("v2.0.50727"),"The NUnitTestAdapter project must be set to target .net framework 3.5");
+            Assert.That(version, Is.EqualTo("v4.0.30319"), "The NUnitTestAdapter project must be set to target .net framework 3.5");
         }
 
         [Test]
@@ -36,7 +36,7 @@ namespace NUnit.VisualStudio.TestAdapter.Tests
             var assembly = Assembly.LoadFrom(dir + "/NUnit.VisualStudio.TestAdapter.dll");
             var refNames = assembly.GetReferencedAssemblies().Where(ass=>ass.Name=="Microsoft.VisualStudio.TestPlatform.ObjectModel").ToList();
             Assert.IsTrue(refNames != null && refNames.Count() == 1, "No reference to Microsoft.VisualStudio.TestPlatform.ObjectModel found");
-            Assert.IsTrue(refNames[0].Version.Major == 11, "Microsoft.VisualStudio.TestPlatform.ObjectModel must point to the 2012 version (11)");
+            Assert.IsTrue(refNames[0].Version.Major > 11, "Microsoft.VisualStudio.TestPlatform.ObjectModel must point to the 2012 version (11)");
 
         }
 

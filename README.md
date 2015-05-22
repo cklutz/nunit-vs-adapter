@@ -4,6 +4,7 @@ Runs NUnit tests inside the Visual Studio 2012 or 2013 Test Explorer window.
 Changes/Additions in this fork:
 * Support for parallelism based on test assemblies.
 * Setting options in ".runsettings" instead of the Windows Registry
+* TestAdapter uses .NET 4.0
 
 ## Support for parallelism based on test assemblies
 
