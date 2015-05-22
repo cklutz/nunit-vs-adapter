@@ -76,20 +76,20 @@ namespace NUnit.VisualStudio.TestAdapter
         #region Properties
 
         // TODO: Revise tests and remove
-        public TestFilter NUnitFilter 
+        public TestFilter NUnitFilter
         {
             get { return nunitFilter; }
         }
 
         // TODO: Revise tests and remove
-        public IList<TestCase> LoadedTestCases 
+        public IList<TestCase> LoadedTestCases
         {
             get { return loadedTestCases; }
         }
 
         // TODO: Revise tests and remove
         public TestConverter TestConverter
-        { 
+        {
             get { return testConverter; }
         }
 
@@ -97,20 +97,20 @@ namespace NUnit.VisualStudio.TestAdapter
 
         #region Public Methods
 
-        public void RunAssembly(IFrameworkHandle testLog)
+        public void RunAssembly(IFrameworkHandle testLog, NUnitTestAdapterSettings settings)
         {
             try
             {
 #if LAUNCHDEBUGGER
             System.Diagnostics.Debugger.Launch();
 #endif
-                if (TryLoadAssembly())
+                if (TryLoadAssembly(settings))
                 {
                     using (NUnitEventListener listener = new NUnitEventListener(testLog, TestConverter))
                     {
                         try
                         {
-                            runner.Run(listener, NUnitFilter, true, LoggingThreshold.Off);
+                            runner.Run(listener, NUnitFilter, true, settings.LoggingThreshold);
                         }
                         catch (NullReferenceException)
                         {
@@ -155,14 +155,14 @@ namespace NUnit.VisualStudio.TestAdapter
         // of calling TestConverter.ConvertTestCase, the converter's
         // cache of all test cases is populated as well. All
         // future calls to convert a test case may now use the cache.
-        private bool TryLoadAssembly()
+        private bool TryLoadAssembly(NUnitTestAdapterSettings settings)
         {
-            var package = NUnitTestAdapter.CreateTestPackage(assemblyName);
+            var package = NUnitTestAdapter.CreateTestPackage(assemblyName, settings);
             if (!runner.Load(package))
                 return false;
-            logger.SendMessage(TestMessageLevel.Informational,string.Format("Loading tests from {0}",package.FullName));
+            logger.SendMessage(TestMessageLevel.Informational, string.Format("Loading tests from {0}", package.FullName));
             AddTestCases(runner.Test);
-            if (tfsFilter==null || !tfsFilter.HasTfsFilterValue) 
+            if (tfsFilter == null || !tfsFilter.HasTfsFilterValue)
                 return true;
             var filteredTestCases = tfsFilter.CheckFilter(LoadedTestCases);
             var ptestCases = filteredTestCases as TestCase[] ?? filteredTestCases.ToArray();

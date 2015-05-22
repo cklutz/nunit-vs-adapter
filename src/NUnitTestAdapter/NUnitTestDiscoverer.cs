@@ -25,11 +25,8 @@ namespace NUnit.VisualStudio.TestAdapter
 
         public void DiscoverTests(IEnumerable<string> sources, IDiscoveryContext discoveryContext, IMessageLogger messageLogger, ITestCaseDiscoverySink discoverySink)
         {
-            TestLog.Initialize(messageLogger);
-            if (RegistryFailure)
-            {
-                TestLog.SendErrorMessage(ErrorMsg);
-            }
+            var settings = GetSettings(discoveryContext);
+            TestLog.Initialize(messageLogger, settings);
             Info("discovering tests", "started");
 
             // Ensure any channels registered by other adapters are unregistered
@@ -40,7 +37,7 @@ namespace NUnit.VisualStudio.TestAdapter
                 TestLog.SendDebugMessage("Processing " + sourceAssembly);
 
                 TestRunner runner = new TestDomain();
-                var package = CreateTestPackage(sourceAssembly);
+                var package = CreateTestPackage(sourceAssembly, settings);
                 TestConverter testConverter = null;
                 try
                 {
@@ -73,7 +70,7 @@ namespace NUnit.VisualStudio.TestAdapter
                 }
                 catch (UnsupportedFrameworkException ex)
                 {
-                    TestLog.UnsupportedFrameworkWarning(sourceAssembly);
+                    TestLog.UnsupportedFrameworkWarning(sourceAssembly, ex);
                 }
                 catch (Exception ex)
                 {

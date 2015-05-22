@@ -1,18 +1,38 @@
 ﻿// ****************************************************************
 // Copyright (c) 2011 NUnit Software. All rights reserved.
 // ****************************************************************
-
+#define MT_RUNNERS
 using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Adapter;
-using NUnit.Core;
+
 // #define LAUNCHDEBUGGER
 
 namespace NUnit.VisualStudio.TestAdapter
 {
+    internal class GlobHelper
+    {
+        internal static bool IsMatch(string str, string pattern)
+        {
+            pattern = Regex.Escape(pattern);
+            pattern = pattern.Replace(@"\*", ".*");
+            pattern = pattern.Replace(@"\?", ".");
+            pattern = "^" + pattern + "$";
+
+            var regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            return regex.IsMatch(str);
+        }
+    }
+
+        
+
+
 
     [ExtensionUri(ExecutorUri)]
     public sealed class NUnitTestExecutor : NUnitTestAdapter, ITestExecutor, IDisposable
@@ -23,7 +43,9 @@ namespace NUnit.VisualStudio.TestAdapter
         public const string ExecutorUri = "executor://NUnitTestExecutor";
 
         // The currently executing assembly runner
+        private readonly Dictionary<string, AssemblyRunner> activeRunners = new Dictionary<string, AssemblyRunner>();
         private AssemblyRunner currentRunner;
+
 
         #region ITestExecutor
 
@@ -37,11 +59,8 @@ namespace NUnit.VisualStudio.TestAdapter
         /// <param name="frameworkHandle">Test log to send results and messages through</param>
         public void RunTests(IEnumerable<string> sources, IRunContext runContext, IFrameworkHandle frameworkHandle)
         {
-            TestLog.Initialize(frameworkHandle);
-            if (RegistryFailure)
-            {
-                TestLog.SendErrorMessage(ErrorMsg);
-            }
+            var settings = GetSettings(runContext);
+            TestLog.Initialize(frameworkHandle, settings);
             Info("executing tests", "started");
 
             try
@@ -51,13 +70,17 @@ namespace NUnit.VisualStudio.TestAdapter
 
                 var tfsfilter = new TfsTestFilter(runContext);
                 TestLog.SendDebugMessage("Keepalive:" + runContext.KeepAlive);
-                var enableShutdown = (UseVsKeepEngineRunning) ? !runContext.KeepAlive : true;
+                var enableShutdown = (!settings.UseVsKeepEngineRunning) || !runContext.KeepAlive;
                 if (!tfsfilter.HasTfsFilterValue)
                 {
                     if (!(enableShutdown && !runContext.KeepAlive))  // Otherwise causes exception when run as commandline, illegal to enableshutdown when Keepalive is false, might be only VS2012
                         frameworkHandle.EnableShutdownAfterTestRun = enableShutdown;
                 }
-                
+
+                bool parallelizeAssemblies = settings.ParallelizeAssemblies;
+                var sourceAssemblies = new List<string>();
+                var parallelSourceAssemblies = new List<string>();
+
                 foreach (var source in sources)
                 {
                     string sourceAssembly = source;
@@ -66,13 +89,52 @@ namespace NUnit.VisualStudio.TestAdapter
                     {
                         sourceAssembly = Path.Combine(Environment.CurrentDirectory, sourceAssembly);
                     }
-                    using (currentRunner = new AssemblyRunner(TestLog, sourceAssembly, tfsfilter,this))
-                    {
-                        currentRunner.RunAssembly(frameworkHandle);
-                    }
 
-                    currentRunner = null;
+                    if (!parallelizeAssemblies)
+                    {
+                        sourceAssemblies.Add(sourceAssembly);
+                    }
+                    else
+                    {
+                        bool added = false;
+
+                        string pattern = settings.ParallelizeAssembliesNames.FirstOrDefault(n => GlobHelper.IsMatch(sourceAssembly, n));
+                        if (pattern != null)
+                        {
+                            Info(string.Format("Assembly '{0}' marked for parallel testing (by name pattern match '{1}').", sourceAssembly, pattern));
+                            parallelSourceAssemblies.Add(sourceAssembly);
+                            added = true;
+                        }
+
+                        if (!added)
+                        {
+                            var assembly = Assembly.ReflectionOnlyLoadFrom(sourceAssembly);
+                            foreach (var data in assembly.GetCustomAttributesData())
+                            {
+                                if (data.ToString().Contains(settings.ParallelizeAssembliesUnqualifiedAttributeName))
+                                {
+                                    Info(string.Format("Assembly '{0}' marked for parallel testing (by assembly attribute match '{1}').", sourceAssembly, data));
+                                    parallelSourceAssemblies.Add(sourceAssembly);
+                                    added = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!added)
+                        {
+                            Info(string.Format("Assembly '{0}' marked for sequential testing.", sourceAssembly));
+                            sourceAssemblies.Add(sourceAssembly);
+                        }
+                    }
                 }
+
+                if (parallelSourceAssemblies.Any())
+                {
+                    RunParallel(parallelSourceAssemblies, frameworkHandle, tfsfilter, settings);
+                }
+
+                RunSequential(sourceAssemblies, frameworkHandle, tfsfilter, settings);
             }
             catch (Exception ex)
             {
@@ -83,6 +145,50 @@ namespace NUnit.VisualStudio.TestAdapter
                 Info("executing tests", "finished");
             }
 
+        }
+
+        private void RunSequential(IEnumerable<string> sources, IFrameworkHandle frameworkHandle, TfsTestFilter tfsfilter, NUnitTestAdapterSettings settings)
+        {
+            foreach (var source in sources)
+            {
+                using (currentRunner = new AssemblyRunner(TestLog, source, tfsfilter, this))
+                {
+                    currentRunner.RunAssembly(frameworkHandle, settings);
+                }
+
+                currentRunner = null;
+            }
+        }
+
+        private void RunParallel(IEnumerable<string> sources, IFrameworkHandle frameworkHandle, TfsTestFilter tfsfilter, NUnitTestAdapterSettings settings)
+        {
+            Info("using parallel by assembly mode");
+            var options = new ParallelOptions();
+            Parallel.ForEach(sources, options, source =>
+            {
+                AssemblyRunner runner = null;
+                try
+                {
+                    runner = new AssemblyRunner(TestLog, source, tfsfilter, this);
+                    lock (activeRunners)
+                    {
+                        activeRunners.Add(source, runner);
+                    }
+
+                    runner.RunAssembly(frameworkHandle, settings);
+                }
+                finally
+                {
+                    if (runner != null)
+                    {
+                        runner.Dispose();
+                        lock (activeRunners)
+                        {
+                            activeRunners.Remove(source);
+                        }
+                    }
+                }
+            });
         }
 
         /// <summary>
@@ -96,15 +202,12 @@ namespace NUnit.VisualStudio.TestAdapter
 #if LAUNCHDEBUGGER
             Debugger.Launch();
 #endif
+            var settings = GetSettings(runContext);
+            TestLog.Initialize(frameworkHandle, settings);
 
-            TestLog.Initialize(frameworkHandle);
-            if (RegistryFailure)
-            {
-                TestLog.SendErrorMessage(ErrorMsg);
-            }
-            var enableShutdown = (UseVsKeepEngineRunning) ? !runContext.KeepAlive : true;
+            var enableShutdown = (!settings.UseVsKeepEngineRunning) || !runContext.KeepAlive;
             frameworkHandle.EnableShutdownAfterTestRun = enableShutdown;
-            Debug("executing tests", "EnableShutdown set to " +enableShutdown);
+            Debug("executing tests", "EnableShutdown set to " + enableShutdown);
             Info("executing tests", "started");
 
             // Ensure any channels registered by other adapters are unregistered
@@ -113,20 +216,27 @@ namespace NUnit.VisualStudio.TestAdapter
             var assemblyGroups = tests.GroupBy(tc => tc.Source);
             foreach (var assemblyGroup in assemblyGroups)
             {
-                using (currentRunner = new AssemblyRunner(TestLog, assemblyGroup.Key, assemblyGroup,this))
+                using (currentRunner = new AssemblyRunner(TestLog, assemblyGroup.Key, assemblyGroup, this))
                 {
-                    currentRunner.RunAssembly(frameworkHandle);
+                    currentRunner.RunAssembly(frameworkHandle, settings);
                 }
 
                 currentRunner = null;
             }
 
             Info("executing tests", "finished");
-
         }
 
         void ITestExecutor.Cancel()
         {
+            lock (activeRunners)
+            {
+                foreach (var runner in activeRunners.Values)
+                {
+                    runner.CancelRun();
+                }
+            }
+
             if (currentRunner != null)
                 currentRunner.CancelRun();
         }
@@ -142,6 +252,15 @@ namespace NUnit.VisualStudio.TestAdapter
         {
             if (disposing)
             {
+                lock (activeRunners)
+                {
+                    foreach (var runner in activeRunners.Values)
+                    {
+                        runner.Dispose();
+                    }
+                    activeRunners.Clear();
+                }
+
                 if (currentRunner != null)
                 {
                     currentRunner.Dispose();

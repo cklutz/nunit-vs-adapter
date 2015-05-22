@@ -3,8 +3,10 @@
 // ****************************************************************
 
 using System;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Remoting.Channels;
+using Microsoft.VisualStudio.TestPlatform.ObjectModel.Adapter;
 using NUnit.Core;
 using NUnit.Util;
 
@@ -12,7 +14,7 @@ namespace NUnit.VisualStudio.TestAdapter
 {
     public interface INUnitTestAdapter
     {
-        TestPackage CreateTestPackage(string sourceAssembly);
+        TestPackage CreateTestPackage(string sourceAssembly, NUnitTestAdapterSettings settings);
     }
 
     /// <summary>
@@ -26,18 +28,6 @@ namespace NUnit.VisualStudio.TestAdapter
         // The adapter version
         private readonly string adapterVersion;
 
-        protected bool UseVsKeepEngineRunning { get; private set; }
-        public bool ShadowCopy { get; private set; }
-
-        public int Verbosity { get; private set; }
-
-
-        protected bool RegistryFailure { get; set; }
-        protected string ErrorMsg
-        {
-            get; set;
-        }
-
         #region Constructor
 
         /// <summary>
@@ -50,23 +40,9 @@ namespace NUnit.VisualStudio.TestAdapter
             ServiceManager.Services.AddService(new ProjectService());
 
             ServiceManager.Services.InitializeServices();
-            Verbosity = 0;
-            RegistryFailure = false;
-            adapterVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString();
-            try
-            {
-                var registry = RegistryCurrentUser.OpenRegistryCurrentUser(@"Software\nunit.org\VSAdapter");
-                UseVsKeepEngineRunning = registry.Exist("UseVsKeepEngineRunning") && (registry.Read<int>("UseVsKeepEngineRunning") == 1);
-                ShadowCopy = registry.Exist("ShadowCopy") && (registry.Read<int>("ShadowCopy") == 1);
-                Verbosity = (registry.Exist("Verbosity")) ? registry.Read<int>("Verbosity") : 0;
-            }
-            catch (Exception e)
-            {
-                RegistryFailure = true;
-                ErrorMsg = e.ToString();
-            }
 
-            TestLog = new TestLogger(Verbosity);
+            adapterVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString();
+            TestLog = new TestLogger();
         }
 
         #endregion
@@ -75,18 +51,73 @@ namespace NUnit.VisualStudio.TestAdapter
 
         private const string Name = "NUnit VS Adapter";
 
+        protected NUnitTestAdapterSettings GetSettings(IDiscoveryContext discoveryContext)
+        {
+            try
+            {
+                Info("Trying to get settings");
+                var provider = discoveryContext.RunSettings.GetSettings(AdapterConstants.SettingsName) as NUnitTestAdapterSettingsProvider;
+                var settings = provider != null ? provider.Settings : new NUnitTestAdapterSettings();
+                return settings;
+            }
+            catch (Exception ex)
+            {
+                Error("Error getting settings", ex);
+                throw;
+            }
+        }
+
+        protected NUnitTestAdapterSettings GetSettings(IRunContext runContext)
+        {
+            try
+            {
+                Info("Trying to get settings");
+                var provider = runContext.RunSettings.GetSettings(AdapterConstants.SettingsName) as NUnitTestAdapterSettingsProvider;
+                var settings = provider != null ? provider.Settings : new NUnitTestAdapterSettings();
+                return settings;
+            }
+            catch (Exception ex)
+            {
+                Error("Error getting settings", ex);
+                throw;
+            }
+        }
+
+        protected void Info(string str)
+        {
+            var msg = string.Format("{0} {1} {2}", Name, adapterVersion, str);
+            TestLog.SendInformationalMessage(msg);
+            Trace.WriteLine(msg);
+        }
+
+        protected void Error(string str, Exception ex = null)
+        {
+            if (ex != null)
+            {
+                var msg = string.Format("{0} {1} {2}: {3}", Name, adapterVersion, str, ex);
+                TestLog.SendErrorMessage(msg);
+                Trace.WriteLine(msg);
+            }
+            else
+            {
+                var msg = string.Format("{0} {1} {2}", Name, adapterVersion, str);
+                TestLog.SendErrorMessage(msg);
+                Trace.WriteLine(msg);
+            }
+        }
+
         protected void Info(string method, string function)
         {
             var msg = string.Format("{0} {1} {2} is {3}",Name, adapterVersion, method, function);
             TestLog.SendInformationalMessage(msg);
+            Trace.WriteLine(msg);
         }
 
         protected void Debug(string method, string function)
         {
-#if DEBUG
             var msg = string.Format("{0} {1} {2} is {3}", Name, adapterVersion, method, function);
             TestLog.SendDebugMessage(msg);
-#endif
+            Trace.WriteLine(msg);
         }
 
         protected static void CleanUpRegisteredChannels()
@@ -95,10 +126,10 @@ namespace NUnit.VisualStudio.TestAdapter
                 ChannelServices.UnregisterChannel(chan);
         }
 
-        public TestPackage CreateTestPackage(string sourceAssembly)
+        public TestPackage CreateTestPackage(string sourceAssembly, NUnitTestAdapterSettings settings)
         {
              var package = new TestPackage(sourceAssembly);
-             package.Settings["ShadowCopyFiles"] = ShadowCopy;
+             package.Settings["ShadowCopyFiles"] = settings.ShadowCopy;
              TestLog.SendDebugMessage("ShadowCopyFiles is set to :" + package.Settings["ShadowCopyFiles"]);
              return package;
         }

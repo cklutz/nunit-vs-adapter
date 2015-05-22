@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>NUnit.VisualStudio.TestAdapter</RootNamespace>
     <AssemblyName>NUnit.VisualStudio.TestAdapter</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
@@ -67,10 +67,12 @@
       <HintPath>..\..\lib\nunit.util.dll</HintPath>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.ComponentModel.Composition" />
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AdapterConstants.cs" />
     <Compile Include="AssemblyRunner.cs" />
     <Compile Include="Internal\AsyncMethodHelper.cs" />
     <Compile Include="Internal\Stackframe.cs" />
@@ -78,6 +80,8 @@
     <Compile Include="Internal\Stacktrace.cs" />
     <Compile Include="NUnitEventListener.cs" />
     <Compile Include="NUnitTestAdapter.cs" />
+    <Compile Include="NUnitTestAdapterSettings.cs" />
+    <Compile Include="NUnitTestAdapterSettingsProvider.cs" />
     <Compile Include="NUnitTestDiscoverer.cs" />
     <Compile Include="NUnitTestExecutor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

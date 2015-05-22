@@ -28,14 +28,10 @@ namespace NUnit.VisualStudio.TestAdapter
             Verbosity = 0;
         }
 
-        public TestLogger(int verbosity)
-        {
-            Verbosity = verbosity;
-        }
-
-        public void Initialize(IMessageLogger messageLoggerParam)
+        public void Initialize(IMessageLogger messageLoggerParam, NUnitTestAdapterSettings settings)
         {
             messageLogger = messageLoggerParam;
+            Verbosity = settings.Verbosity;
         }
 
         public void AssemblyNotSupportedWarning(string sourceAssembly)
@@ -48,9 +44,9 @@ namespace NUnit.VisualStudio.TestAdapter
             SendWarningMessage("Dependent Assembly " + dependentAssembly + " of " + sourceAssembly + " not found. Can be ignored if not a NUnit project.");
         }
 
-        public void UnsupportedFrameworkWarning(string assembly)
+        public void UnsupportedFrameworkWarning(string assembly, Exception ex)
         {
-            SendWarningMessage("Attempt to load assembly with unsupported test framework in  "+assembly);
+            SendWarningMessage("Attempt to load assembly with unsupported test framework in  " + assembly + ": " + ex);
         }
 
         public void LoadingAssemblyFailedWarning(string dependentAssembly, string sourceAssembly)
@@ -63,6 +59,17 @@ namespace NUnit.VisualStudio.TestAdapter
             SendErrorMessage("NUnit failed to load " + sourceAssembly);
         }
 
+        private TestMessageLevel GetEffectiveMessageLevel(TestMessageLevel suggestedLevel)
+        {
+            if (Verbosity >= 99)
+            {
+                // This will make sure that the message _is_ displayed in a TFS build report. No matter what.
+                return TestMessageLevel.Error;
+            }
+
+            return suggestedLevel;
+        }
+
         public void SendErrorMessage(string message)
         {
             SendMessage(TestMessageLevel.Error, message);
@@ -70,18 +77,8 @@ namespace NUnit.VisualStudio.TestAdapter
 
         public void SendErrorMessage(string message, Exception ex)
         {
-            
-            switch (Verbosity)
-            {
-                case 0:
-                    var type = ex.GetType();
-                    SendErrorMessage(string.Format("Exception {0}, {1}",type, message));
-                    break;
-                default:
-                    SendMessage(TestMessageLevel.Error, message);
-                    SendErrorMessage(ex.ToString());
-                    break;
-            }
+            SendMessage(TestMessageLevel.Error, message);
+            SendErrorMessage(ex.ToString());
         }
 
         public void SendWarningMessage(string message)
@@ -89,20 +86,10 @@ namespace NUnit.VisualStudio.TestAdapter
             SendMessage(TestMessageLevel.Warning, message);
         }
 
-        public void SendWarningMessage(string message,Exception ex)
+        public void SendWarningMessage(string message, Exception ex)
         {
-            switch (Verbosity)
-            {
-                case 0:
-                    var type = ex.GetType();
-                    SendMessage(TestMessageLevel.Warning,string.Format("Exception {0}, {1}", type, message));
-                    break;
-                default:
-                    SendMessage(TestMessageLevel.Warning, message);
-                    SendMessage(TestMessageLevel.Warning,ex.ToString());
-                    break;
-            }
             SendMessage(TestMessageLevel.Warning, message);
+            SendMessage(TestMessageLevel.Warning, ex.ToString());
         }
 
         public void SendInformationalMessage(string message)
@@ -112,15 +99,19 @@ namespace NUnit.VisualStudio.TestAdapter
 
         public void SendDebugMessage(string message)
         {
-#if DEBUG
-            SendMessage(TestMessageLevel.Informational, message);
-#endif
+            if (Verbosity > 0)
+            {
+                SendMessage(TestMessageLevel.Informational, message);
+            }
         }
 
         public void SendMessage(TestMessageLevel testMessageLevel, string message)
         {
             if (messageLogger != null)
+            {
+                testMessageLevel = GetEffectiveMessageLevel(testMessageLevel);
                 messageLogger.SendMessage(testMessageLevel, message);
+            }
         }
     }
 }
