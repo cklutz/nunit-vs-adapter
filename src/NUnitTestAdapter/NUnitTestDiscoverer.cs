@@ -2,6 +2,7 @@
 // Copyright (c) 2011 NUnit Software. All rights reserved.
 // ****************************************************************
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -13,8 +14,6 @@ using NUnit.Util;
 
 namespace NUnit.VisualStudio.TestAdapter
 {
-    using System;
-
     [FileExtension(".dll")]
     [FileExtension(".exe")]
     [DefaultExecutorUri(NUnitTestExecutor.ExecutorUri)]
@@ -36,7 +35,7 @@ namespace NUnit.VisualStudio.TestAdapter
             {
                 TestLog.SendDebugMessage("Processing " + sourceAssembly);
 
-                TestRunner runner = new TestDomain();
+                var runner = new TestDomain();
                 var package = CreateTestPackage(sourceAssembly, settings);
                 TestConverter testConverter = null;
                 try
@@ -57,7 +56,6 @@ namespace NUnit.VisualStudio.TestAdapter
                     // we skip the native c++ binaries that we don't support.
                     TestLog.AssemblyNotSupportedWarning(sourceAssembly);
                 }
-
                 catch (FileNotFoundException ex)
                 {
                     // Probably from the GetExportedTypes in NUnit.core, attempting to find an assembly, not a problem if it is not NUnit here
@@ -118,7 +116,5 @@ namespace NUnit.VisualStudio.TestAdapter
         }
 
         #endregion
-
-
     }
 }

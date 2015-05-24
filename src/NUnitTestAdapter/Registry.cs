@@ -19,11 +19,20 @@ namespace NUnit.VisualStudio.TestAdapter
             SubKeyName = subkeyname;
         }
 
-        public T Read<T>(string property)
+        public bool IsSet(string property)
+        {
+            var result = Registry.GetValue(BaseKey + SubKeyName, property, null);
+            if (!(result is int))
+                return false;
+
+            return ((int)result) == 1;
+        }
+
+        public T Read<T>(string property, T defaultValue = default(T))
         {
             var result = Registry.GetValue(BaseKey + SubKeyName, property, null);
             if (result == null)
-                return default(T);
+                return defaultValue;
             var value = (T)result;
             return value;
         }

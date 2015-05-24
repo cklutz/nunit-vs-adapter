@@ -54,7 +54,7 @@ namespace NUnit.VisualStudio.TestAdapter
         protected NUnitTestAdapterSettings GetSettings(IDiscoveryContext discoveryContext)
         {
             if (discoveryContext == null || discoveryContext.RunSettings == null)
-                return new NUnitTestAdapterSettings();
+                return NUnitTestAdapterSettings.CreateFromRegistry();
 
             return GetSettings(discoveryContext.RunSettings);
         }
@@ -62,7 +62,7 @@ namespace NUnit.VisualStudio.TestAdapter
         protected NUnitTestAdapterSettings GetSettings(IRunContext runContext)
         {
             if (runContext == null || runContext.RunSettings == null)
-                return new NUnitTestAdapterSettings();
+                return NUnitTestAdapterSettings.CreateFromRegistry();
 
             return GetSettings(runContext.RunSettings);
         }
@@ -73,7 +73,7 @@ namespace NUnit.VisualStudio.TestAdapter
             {
                 Info("Trying to get settings");
                 var provider = runSettings.GetSettings(AdapterConstants.SettingsName) as NUnitTestAdapterSettingsProvider;
-                var settings = provider != null ? provider.Settings : new NUnitTestAdapterSettings();
+                var settings = provider != null ? provider.Settings : NUnitTestAdapterSettings.CreateFromRegistry();;
                 return settings;
             }
             catch (Exception ex)

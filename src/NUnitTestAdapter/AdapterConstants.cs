@@ -2,7 +2,7 @@
 
 namespace NUnit.VisualStudio.TestAdapter
 {
-    public class AdapterConstants
+    public static class AdapterConstants
     {
         // IMPORTANT: This must match the name of the respective class.
         public const string SettingsName = "NUnitTestAdapterSettings";
