@@ -19,6 +19,7 @@ namespace NUnit.VisualStudio.TestAdapter
             ParallelizeAssembliesUnqualifiedAttributeName = "NUnitAdapterAssemblyParallelize";
             ParallelizeAssembliesNames = new List<string>();
             MaxDegreeOfParallelism = (new ParallelOptions()).MaxDegreeOfParallelism;
+            OutputTestCaseOutputAsMessage = true;
         }
 
         public static NUnitTestAdapterSettings CreateFromRegistry()
@@ -44,6 +45,9 @@ namespace NUnit.VisualStudio.TestAdapter
         public bool ShadowCopy { get; set; }
         public int Verbosity { get; set; }
         public LoggingThreshold LoggingThreshold { get; set; }
+
+        public bool CombineTestCaseOutputIntoStdOut { get; set; }
+        public bool OutputTestCaseOutputAsMessage { get; set; }
 
         public override XmlElement ToXml()
         {

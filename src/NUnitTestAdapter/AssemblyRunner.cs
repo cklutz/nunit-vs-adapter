@@ -108,6 +108,9 @@ namespace NUnit.VisualStudio.TestAdapter
                 {
                     using (NUnitEventListener listener = new NUnitEventListener(testLog, TestConverter))
                     {
+                        listener.CombineTestCaseOutputIntoStdOut = settings.CombineTestCaseOutputIntoStdOut;
+                        listener.OutputTestCaseOutputAsMessage = settings.OutputTestCaseOutputAsMessage;
+
                         try
                         {
                             runner.Run(listener, NUnitFilter, true, settings.LoggingThreshold);

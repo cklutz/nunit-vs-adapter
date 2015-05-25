@@ -48,11 +48,11 @@ namespace NUnit.VisualStudio.TestAdapter
             // Return cached value if we have one
             if (vsTestCaseMap.ContainsKey(test.TestName.UniqueName))
                 return vsTestCaseMap[test.TestName.UniqueName];
-           
+
             // Convert to VS TestCase and cache the result
             var testCase = MakeTestCaseFromNUnitTest(test);
             vsTestCaseMap.Add(test.TestName.UniqueName, testCase);
-            return testCase;             
+            return testCase;
         }
 
         public TestCase GetCachedTestCase(string key)
@@ -69,34 +69,40 @@ namespace NUnit.VisualStudio.TestAdapter
             TestCase ourCase = GetCachedTestCase(result.Test.TestName.UniqueName);
             if (ourCase == null) return null;
 
-            VSTestResult ourResult = new VSTestResult(ourCase)
-                {
-                    DisplayName = ourCase.DisplayName,
-                    Outcome = ResultStateToTestOutcome(result.ResultState),
-                    Duration = TimeSpan.FromSeconds(result.Time)
-                };
+            var ourResult = new VSTestResult(ourCase)
+            {
+                DisplayName = ourCase.DisplayName,
+                Outcome = ResultStateToTestOutcome(result.ResultState),
+                Duration = GetDuration(result),
+                ComputerName = Environment.MachineName
+            };
 
-            // TODO: Remove this when NUnit provides a better duration
-            if (ourResult.Duration == TimeSpan.Zero && (ourResult.Outcome == TestOutcome.Passed || ourResult.Outcome == TestOutcome.Failed))
-                ourResult.Duration = TimeSpan.FromTicks(1);
-            ourResult.ComputerName = Environment.MachineName;
-
-            // TODO: Stuff we don't yet set
-            //   StartTime   - not in NUnit result
-            //   EndTime     - not in NUnit result
-            //   Messages    - could we add messages other than the error message? Where would they appear?
-            //   Attachments - don't exist in NUnit
+            // NUnit's Results does not provide these. So fake them as good as we can here.
+            ourResult.EndTime = DateTime.Now;
+            ourResult.StartTime = ourResult.EndTime - ourResult.Duration;
 
             if (result.Message != null)
+            {
                 ourResult.ErrorMessage = GetErrorMessage(result);
+            }
 
             if (!string.IsNullOrEmpty(result.StackTrace))
             {
-                string stackTrace = StackTraceFilter.Filter(result.StackTrace);
-                ourResult.ErrorStackTrace = stackTrace;
+                ourResult.ErrorStackTrace = StackTraceFilter.Filter(result.StackTrace);
             }
 
             return ourResult;
+        }
+
+        private static TimeSpan GetDuration(NUnitTestResult result)
+        {
+            var duration = TimeSpan.FromSeconds(result.Time);
+
+            // TODO: Remove this when NUnit provides a better duration
+            if (duration == TimeSpan.Zero && (result.IsFailure || result.IsSuccess))
+                return TimeSpan.FromTicks(1);
+
+            return duration;
         }
 
         public void Dispose()
@@ -217,7 +223,7 @@ namespace NUnit.VisualStudio.TestAdapter
         private AsyncMethodHelper TryCreateHelper(string sourceAssembly)
         {
             var setup = new AppDomainSetup();
-            
+
             var thisAssembly = Assembly.GetExecutingAssembly();
             setup.ApplicationBase = AssemblyHelper.GetDirectoryName(thisAssembly);
 
@@ -232,11 +238,11 @@ namespace NUnit.VisualStudio.TestAdapter
                 helper.LoadAssembly(sourceAssembly);
                 return helper as AsyncMethodHelper;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 // If we can't load it for some reason, we issue a warning
                 // and won't try to do it again for the assembly.
-                logger.SendWarningMessage("Unable to reflect on " + sourceAssembly + "\r\nSource data will not be available for some of the tests",ex);
+                logger.SendWarningMessage("Unable to reflect on " + sourceAssembly + "\r\nSource data will not be available for some of the tests", ex);
                 return null;
             }
         }
@@ -257,8 +263,11 @@ namespace NUnit.VisualStudio.TestAdapter
                     if (entryAssembly != null)
                         exeName = Path.GetFileName(AssemblyHelper.GetAssemblyPath(entryAssembly));
                 }
-                
-                return exeName == "vstest.executionengine.exe";
+
+                return exeName != null && (
+                       exeName.Contains("vstest.executionengine") ||
+                       exeName.Contains("vstest.discoveryengine") ||
+                       exeName.Contains("TE.ProcessHost"));
             }
         }
 

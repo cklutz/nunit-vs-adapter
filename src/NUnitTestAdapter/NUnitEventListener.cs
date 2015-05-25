@@ -3,6 +3,7 @@
 // ****************************************************************
 
 using System;
+using System.Text;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel.Adapter;
 using Microsoft.VisualStudio.TestPlatform.ObjectModel;
 using NUnit.Core;
@@ -34,7 +35,15 @@ namespace NUnit.VisualStudio.TestAdapter
         {
             this.testLog = testLog;
             this.testConverter = testConverter;
+            StdOut = new StringBuilder();
+            StdErr = new StringBuilder();
+            DebugTrace = new StringBuilder();
+            AdditionalInfo = new StringBuilder();
+            OutputTestCaseOutputAsMessage = true;
         }
+
+        public bool CombineTestCaseOutputIntoStdOut { get; set; }
+        public bool OutputTestCaseOutputAsMessage { get; set; }
 
         public void RunStarted(string name, int testCount)
         {
@@ -49,7 +58,10 @@ namespace NUnit.VisualStudio.TestAdapter
         {
         }
 
-        public string Output { get; private set; }
+        public StringBuilder StdOut { get; private set; }
+        public StringBuilder StdErr { get; private set; }
+        public StringBuilder DebugTrace { get; private set; }
+        public StringBuilder AdditionalInfo { get; private set; }
 
         public void SuiteStarted(TestName testName)
         {
@@ -79,7 +91,7 @@ namespace NUnit.VisualStudio.TestAdapter
             if (ourCase != null)
             {
                 this.testLog.RecordStart(ourCase);
-                // Output = testName.FullName + "\r";
+                // StdOut = testName.FullName + "\r";
             }
 
         }
@@ -87,10 +99,26 @@ namespace NUnit.VisualStudio.TestAdapter
         public void TestFinished(NUnit.Core.TestResult result)
         {
             TestResult ourResult = testConverter.ConvertTestResult(result);
-            ourResult.Messages.Add(new TestResultMessage(TestResultMessage.StandardOutCategory, Output));
+            AddMessage(ourResult, TestResultMessage.StandardOutCategory, StdOut);
+            AddMessage(ourResult, TestResultMessage.StandardErrorCategory, StdErr);
+            AddMessage(ourResult, TestResultMessage.DebugTraceCategory, DebugTrace);
+            AddMessage(ourResult, TestResultMessage.AdditionalInfoCategory, AdditionalInfo);
             this.testLog.RecordEnd(ourResult.TestCase, ourResult.Outcome);
             this.testLog.RecordResult(ourResult);
-            Output = "";
+
+            StdOut.Clear();
+            StdErr.Clear();
+            DebugTrace.Clear();
+            AdditionalInfo.Clear();
+        }
+
+        private static void AddMessage(TestResult testResult, string category, StringBuilder buffer)
+        {
+            string text = buffer.ToString();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                testResult.Messages.Add(new TestResultMessage(category, text));
+            }
         }
 
         public void TestOutput(TestOutput testOutput)
@@ -104,26 +132,34 @@ namespace NUnit.VisualStudio.TestAdapter
                     : 0;
             if (drop > 0)
                 message = message.Substring(0, length - drop);
-            if (!string.IsNullOrEmpty(message.Trim()))
+
+            if (OutputTestCaseOutputAsMessage && !string.IsNullOrWhiteSpace(message))
+            {
                 testLog.SendMessage(TestMessageLevel.Informational, message);
-            string type="";
-            // Consider adding this later, as an option.
-            //switch (testOutput.Type)
-            //{
-            //    case TestOutputType.Trace:
-            //        type ="Debug: ";
-            //        break;
-            //    case TestOutputType.Out:
-            //        type ="Console: ";
-            //        break;
-            //    case TestOutputType.Log:
-            //        type="Log: ";
-            //        break;
-            //    case TestOutputType.Error:
-            //        type="Error: ";
-            //        break;
-            //}
-            this.Output += (type+message+'\r');
+            }
+            
+            if (CombineTestCaseOutputIntoStdOut)
+            {
+                StdOut.AppendLine(message);
+            }
+            else
+            {
+                switch (testOutput.Type)
+                {
+                    case TestOutputType.Out:
+                        StdOut.AppendLine(message);
+                        break;
+                    case TestOutputType.Error:
+                        StdErr.AppendLine(message);
+                        break;
+                    case TestOutputType.Trace:
+                        DebugTrace.AppendLine(message);
+                        break;
+                    default:
+                        AdditionalInfo.AppendLine(message);
+                        break;
+                }
+            }
         }
 
         public void UnhandledException(Exception exception)
