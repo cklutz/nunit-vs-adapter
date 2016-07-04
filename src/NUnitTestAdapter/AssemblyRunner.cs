@@ -141,6 +141,10 @@ namespace NUnit.VisualStudio.TestAdapter
                 // Probably from the GetExportedTypes in NUnit.core, attempting to find an assembly, not a problem if it is not NUnit here
                 logger.DependentAssemblyNotFoundWarning(ex.FileName, assemblyName);
             }
+            catch (UnsupportedFrameworkException ex)
+            {
+                logger.UnsupportedFrameworkWarning(assemblyName, ex);
+            }
             catch (Exception ex)
             {
                 logger.SendErrorMessage("Exception thrown executing tests in " + assemblyName, ex);
